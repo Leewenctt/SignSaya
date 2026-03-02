@@ -6,6 +6,11 @@ sealed class Screen(val route: String, val title: String, val icon: Int) {
     object Translate : Screen("translate", "Translate", R.drawable.ic_translate)
     object Profile : Screen("profile", "Profile", R.drawable.ic_profile)
     object Welcome : Screen("welcome", "", 0)
+    object Login : Screen("login", "", 0)
+    object SignUp : Screen("signup", "", 0)
+    object EmailVerification : Screen("email_verification/{email}", "", 0) {
+        fun createRoute(email: String) = "email_verification/$email"
+    }
 }
 
 val navItems = listOf(Screen.Home, Screen.Practice, Screen.Translate, Screen.Profile)
