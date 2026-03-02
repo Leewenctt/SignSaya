@@ -1,21 +1,21 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Firebase Auth - specific classes needed for proper functionality
+-keep class com.google.firebase.auth.FirebaseAuth { *; }
+-keep class com.google.firebase.auth.FirebaseUser { *; }
+-keep class com.google.firebase.auth.AuthResult { *; }
+-keep class com.google.firebase.auth.FirebaseAuthException { *; }
+-keep class com.google.firebase.auth.FirebaseAuthWeakPasswordException { *; }
+-keep class com.google.firebase.auth.FirebaseAuthInvalidCredentialsException { *; }
+-keep class com.google.firebase.auth.FirebaseAuthUserCollisionException { *; }
+-keep class com.google.firebase.auth.FirebaseAuthInvalidUserException { *; }
+-keep class com.google.firebase.FirebaseNetworkException { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep serialized data classes
+-keepclassmembers class com.mcc.signsaya.repository.** {
+    *;
+}
+-keepclassmembers class com.mcc.signsaya.viewmodel.** {
+    *;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep kotlinx.coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}

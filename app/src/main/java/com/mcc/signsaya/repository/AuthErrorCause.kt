@@ -1,4 +1,4 @@
-package com.mcc.signsaya.viewmodel
+package com.mcc.signsaya.repository
 
 enum class AuthErrorCause {
     EMAIL,

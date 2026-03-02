@@ -2,6 +2,7 @@ package com.mcc.signsaya.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mcc.signsaya.repository.AuthErrorCause
 import com.mcc.signsaya.repository.AuthRepository
 import com.mcc.signsaya.repository.AuthResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +28,6 @@ data class SignUpUiState(
     val bannerError: String? = null,
 
     val isSubmitting: Boolean = false,
-    val isGoogleSigningIn: Boolean = false,
 
     // Non-null triggers navigation; always consume with onNavigationHandled()
     val navigateToVerification: String? = null,
@@ -132,46 +132,8 @@ class SignUpViewModel(
                     _state.update {
                         it.copy(
                             isSubmitting = false,
-                            bannerError = (result as AuthResult.Error).message
+                            bannerError = result.message
                         )
-                    }
-                }
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Google sign-in
-    // -----------------------------------------------------------------------
-
-    fun submitGoogleSignIn(idToken: String) {
-        if (_state.value.isGoogleSigningIn) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(isGoogleSigningIn = true, bannerError = null) }
-
-            when (val result = repository.signInWithGoogle(idToken)) {
-                is AuthResult.Success -> {
-                    val email = repository.currentUser?.email
-                    if (email.isNullOrBlank()) {
-                        // Sign in succeeded but returned no email — don't leave a ghost session
-                        repository.signOut()
-                        _state.update {
-                            it.copy(
-                                isGoogleSigningIn = false,
-                                bannerError = "Google sign-in succeeded but no email was returned. " +
-                                        "Please try again or use a different account."
-                            )
-                        }
-                    } else {
-                        _state.update {
-                            it.copy(isGoogleSigningIn = false, navigateToVerification = email)
-                        }
-                    }
-                }
-                is AuthResult.Error -> {
-                    _state.update {
-                        it.copy(isGoogleSigningIn = false, bannerError = result.message)
                     }
                 }
             }

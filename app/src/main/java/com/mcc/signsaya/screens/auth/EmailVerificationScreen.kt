@@ -39,7 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mcc.signsaya.components.PrimaryButton
-import com.mcc.signsaya.components.SecondaryButton
 import com.mcc.signsaya.viewmodel.EmailVerificationViewModel
 
 @Composable
@@ -85,9 +84,30 @@ fun EmailVerificationScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = onBack) {
-                    Text("Go back")
-                }
+                TextButton(onClick = onBack) { Text("Go back") }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    // Polling timed out dialog
+    if (state.pollingTimedOut) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Still waiting?") },
+            text = {
+                Text(
+                    "We've been checking for a while but your email hasn't been verified yet. " +
+                            "Check your inbox or spam folder, then tap \"I've verified my email\" " +
+                            "when you're ready.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.checkVerification() }) { Text("Check now") }
+            },
+            dismissButton = {
+                TextButton(onClick = onBack) { Text("Go back") }
             },
             shape = RoundedCornerShape(16.dp)
         )
@@ -183,21 +203,23 @@ fun EmailVerificationScreen(
 
             Spacer(Modifier.weight(1f))
 
-            // Polling indicator
-            CircularProgressIndicator(
-                modifier = Modifier.size(32.dp),
-                strokeWidth = 3.dp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-            )
+            // Polling indicator — hidden once timed out
+            if (!state.pollingTimedOut) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(32.dp),
+                    strokeWidth = 3.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                )
 
-            Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
 
-            Text(
-                text = "Waiting for verification…",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center
-            )
+                Text(
+                    text = "Waiting for verification…",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center
+                )
+            }
 
             Spacer(Modifier.weight(1f))
 

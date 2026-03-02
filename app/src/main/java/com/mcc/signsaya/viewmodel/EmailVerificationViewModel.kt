@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 
 private const val RESEND_COOLDOWN = 60
 private const val POLL_INTERVAL_MS = 5_000L
+private const val POLL_MAX_DURATION_MS = 10 * 60 * 1000L // 10 minutes
 
 // ---------------------------------------------------------------------------
 // UI State
@@ -35,6 +36,9 @@ data class VerificationUiState(
     // Distinct flags — screen can show different UI for each
     val networkError: Boolean = false,
     val sessionExpired: Boolean = false,
+
+    // Shown when polling times out after 10 minutes
+    val pollingTimedOut: Boolean = false,
 
     // Consume with onNavigationHandled()
     val navigateToHome: Boolean = false,
@@ -174,10 +178,21 @@ class EmailVerificationViewModel(
     private fun startPolling() {
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
+            val startTime = System.currentTimeMillis()
+
             while (true) {
                 delay(POLL_INTERVAL_MS)
+
+                // Stop if already resolved
                 val current = _state.value
                 if (current.navigateToHome || current.sessionExpired) break
+
+                // Stop after 10 minutes — user has likely abandoned or missed the email
+                if (System.currentTimeMillis() - startTime >= POLL_MAX_DURATION_MS) {
+                    _state.update { it.copy(pollingTimedOut = true) }
+                    break
+                }
+
                 handleVerificationResult(repository.checkEmailVerified())
             }
         }
