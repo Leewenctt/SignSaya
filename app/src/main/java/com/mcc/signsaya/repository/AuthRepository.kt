@@ -9,10 +9,6 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import kotlinx.coroutines.tasks.await
 
-// ---------------------------------------------------------------------------
-// Result contract
-// ---------------------------------------------------------------------------
-
 sealed class AuthResult {
     object Success : AuthResult()
     sealed class Error(open val message: String) : AuthResult() {
@@ -35,18 +31,13 @@ sealed class VerificationResult {
     data class Unexpected(val message: String) : VerificationResult()
 }
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 class AuthRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) {
 
-    // --- Sign up ---
     suspend fun signUpWithEmail(email: String, password: String): AuthResult {
-        require(email.isNotBlank()) { "Email must not be blank" }
-        require(password.isNotBlank()) { "Password must not be blank" }
+        require(email.isNotBlank()) { "Email cannot be blank" }
+        require(password.isNotBlank()) { "Password cannot be blank" }
 
         return try {
             val result = auth.createUserWithEmailAndPassword(email, password).await()
@@ -54,20 +45,18 @@ class AuthRepository(
             AuthResult.Success
         } catch (_: FirebaseAuthWeakPasswordException) {
             AuthResult.Error.InvalidInput(
-                message = "Your password isn't strong enough. Use at least 8 characters, " +
-                        "including one uppercase letter and one number.",
+                message = "Password must be at least 8 characters long " +
+                        "and include an uppercase letter and a number.",
                 cause = AuthErrorCause.PASSWORD
             )
         } catch (_: FirebaseAuthInvalidCredentialsException) {
             AuthResult.Error.InvalidInput(
-                message = "That doesn't look like a valid email address. " +
-                        "Please double-check and try again.",
+                message = "Invalid email address. Please check and try again",
                 cause = AuthErrorCause.EMAIL
             )
         } catch (_: FirebaseAuthUserCollisionException) {
             AuthResult.Error.Conflict(
-                "An account with this email already exists. " +
-                        "Try logging in instead, or use a different email."
+                "This email address is already in use."
             )
         } catch (_: FirebaseNetworkException) {
             AuthResult.Error.Network(
@@ -75,31 +64,35 @@ class AuthRepository(
                         "Check your internet connection and try again."
             )
         } catch (e: FirebaseAuthException) {
-            e.toUnexpectedError()
+            when (e.errorCode) {
+                "ERROR_TOO_MANY_REQUESTS" -> AuthResult.Error.TooManyRequests(
+                    "Too many attempts. Please wait a few minutes before trying again."
+                )
+                else -> e.toUnexpectedError()
+            }
         } catch (_: Exception) {
             AuthResult.Error.Unexpected(
-                "Something went wrong on our end. Please try again in a moment."
+                "Something went wrong. Please try again in a moment."
             )
         }
     }
 
-    // --- Email verification ---
     suspend fun resendVerificationEmail(): AuthResult {
         return try {
             auth.currentUser?.sendEmailVerification()?.await()
                 ?: return AuthResult.Error.Unexpected(
-                    "No signed-in account found. Please sign up again."
+                    "No signed-in account found. Please sign up and try again."
                 )
             AuthResult.Success
         } catch (_: FirebaseNetworkException) {
             AuthResult.Error.Network(
-                "We couldn't send the email — check your internet connection and try again."
+                "We couldn't send the verification email. " +
+                        "Check your internet connection and try again."
             )
         } catch (e: FirebaseAuthException) {
             when (e.errorCode) {
                 "ERROR_TOO_MANY_REQUESTS" -> AuthResult.Error.TooManyRequests(
-                    "You've requested too many verification emails. " +
-                            "Please wait a few minutes before trying again."
+                    "Too many attempts. Please wait a few minutes before trying again."
                 )
                 else -> e.toUnexpectedError()
             }
@@ -132,8 +125,6 @@ class AuthRepository(
         }
     }
 
-    // --- Session ---
-
     fun signOut() {
         auth.signOut()
     }
@@ -141,10 +132,6 @@ class AuthRepository(
     val currentUser get() = auth.currentUser
 
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 private fun FirebaseAuthException.toUnexpectedError(): AuthResult.Error.Unexpected =
     AuthResult.Error.Unexpected(

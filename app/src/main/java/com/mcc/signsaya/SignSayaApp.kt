@@ -30,7 +30,7 @@ fun SignSayaApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // If the user is already signed in and verified, skip Welcome and go straight to Home
+    // Skip Welcome if user already signed in and verified
     val startDestination = run {
         val user = FirebaseAuth.getInstance().currentUser
         if (user != null && user.isEmailVerified) Screen.Home.route
@@ -88,9 +88,21 @@ fun SignSayaApp() {
 
             composable(Screen.Welcome.route) {
                 WelcomeScreen(
-                    onLogin = { navController.navigate(Screen.Login.route) },
-                    onCreateAccount = { navController.navigate(Screen.SignUp.route) },
-                    onContinueAsGuest = { navController.navigate(Screen.Home.route) }
+                    onLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onCreateAccount = {
+                        navController.navigate(Screen.SignUp.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onContinueAsGuest = {
+                        navController.navigate(Screen.Home.route) {
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
 
@@ -108,6 +120,11 @@ fun SignSayaApp() {
             composable(Screen.SignUp.route) {
                 SignUpScreen(
                     onBack = { navController.popBackStack() },
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            launchSingleTop = true
+                        }
+                    },
                     onSignUpSuccess = { email ->
                         navController.navigate(Screen.EmailVerification.createRoute(email)) {
                             popUpTo(Screen.SignUp.route) { inclusive = true }

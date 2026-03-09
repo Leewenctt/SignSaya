@@ -11,31 +11,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// ---------------------------------------------------------------------------
-// UI State
-// ---------------------------------------------------------------------------
-
 data class SignUpUiState(
     val email: String = "",
     val password: String = "",
     val confirmPassword: String = "",
-
     val emailError: String? = null,
     val passwordError: String? = null,
     val confirmPasswordError: String? = null,
-
-    // Banner for non-field errors (network, rate-limit, unexpected)
-    val bannerError: String? = null,
-
+    val bannerError: String? = null, // Non-field errors (network, rate-limit)
     val isSubmitting: Boolean = false,
-
-    // Non-null triggers navigation; always consume with onNavigationHandled()
-    val navigateToVerification: String? = null,
+    val navigateToVerification: String? = null, // Non-null triggers navigation
 )
-
-// ---------------------------------------------------------------------------
-// ViewModel
-// ---------------------------------------------------------------------------
 
 class SignUpViewModel(
     private val repository: AuthRepository = AuthRepository()
@@ -44,46 +30,19 @@ class SignUpViewModel(
     private val _state = MutableStateFlow(SignUpUiState())
     val state: StateFlow<SignUpUiState> = _state.asStateFlow()
 
-    // -----------------------------------------------------------------------
-    // Field updates
-    // -----------------------------------------------------------------------
-
     fun onEmailChange(value: String) {
         _state.update { it.copy(email = value, emailError = null, bannerError = null) }
     }
 
     fun onPasswordChange(value: String) {
-        _state.update {
-            it.copy(
-                password = value,
-                passwordError = null,
-                // Keep confirm error live-validated once it's been shown
-                confirmPasswordError = if (it.confirmPasswordError != null && it.confirmPassword.isNotBlank())
-                    validateConfirmPassword(value, it.confirmPassword)
-                else it.confirmPasswordError,
-                bannerError = null
-            )
-        }
+        _state.update { it.copy(password = value, passwordError = null, bannerError = null) }
     }
 
     fun onConfirmPasswordChange(value: String) {
-        _state.update {
-            it.copy(
-                confirmPassword = value,
-                confirmPasswordError = if (it.confirmPasswordError != null)
-                    validateConfirmPassword(it.password, value)
-                else null,
-                bannerError = null
-            )
-        }
+        _state.update { it.copy(confirmPassword = value, confirmPasswordError = null, bannerError = null) }
     }
 
-    // -----------------------------------------------------------------------
-    // Email + password sign up
-    // -----------------------------------------------------------------------
-
     fun submitSignUp() {
-        // Guard first — snapshot only after we know we're proceeding
         if (_state.value.isSubmitting) return
 
         val state = _state.value
@@ -112,7 +71,6 @@ class SignUpViewModel(
                     }
                 }
                 is AuthResult.Error.InvalidInput -> {
-                    // Repository returns typed exceptions so we know exactly which field failed
                     _state.update {
                         it.copy(
                             isSubmitting = false,
@@ -140,10 +98,6 @@ class SignUpViewModel(
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Events
-    // -----------------------------------------------------------------------
-
     fun onNavigationHandled() {
         _state.update { it.copy(navigateToVerification = null) }
     }
@@ -153,28 +107,24 @@ class SignUpViewModel(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
 private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$")
 
 private fun validateEmail(email: String): String? = when {
-    email.isBlank() -> "Email is required."
-    !email.matches(EMAIL_REGEX) -> "That doesn't look like a valid email address."
+    email.isBlank() -> "Email address is required."
+    !email.matches(EMAIL_REGEX) -> "Email address is invalid."
     else -> null
 }
 
 private fun validatePassword(password: String): String? = when {
     password.isBlank() -> "Password is required."
+    password.contains(" ") -> "Password cannot contain spaces."
     password.length < 8 -> "Password must be at least 8 characters long."
-    !password.any { it.isUpperCase() } -> "Include at least one uppercase letter."
-    !password.any { it.isDigit() } -> "Include at least one number."
+    !password.any { it.isLetter() } || !password.any { it.isDigit() } -> "Password must include a letter and a number."
     else -> null
 }
 
 private fun validateConfirmPassword(password: String, confirm: String): String? = when {
     confirm.isBlank() -> "Please confirm your password."
-    confirm != password -> "Passwords do not match."
+    confirm != password -> "Password must match."
     else -> null
 }

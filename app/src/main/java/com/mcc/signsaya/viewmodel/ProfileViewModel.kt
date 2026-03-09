@@ -7,18 +7,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-// ---------------------------------------------------------------------------
-// UI State
-// ---------------------------------------------------------------------------
-
 data class ProfileUiState(
     val userEmail: String? = null,
     val isLoading: Boolean = false
 )
-
-// ---------------------------------------------------------------------------
-// ViewModel
-// ---------------------------------------------------------------------------
 
 class ProfileViewModel(
     private val repository: AuthRepository = AuthRepository()

@@ -1,10 +1,10 @@
 package com.mcc.signsaya.screens.auth
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,25 +14,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,29 +35,47 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mcc.signsaya.BuildConfig
+import com.mcc.signsaya.R
+import com.mcc.signsaya.components.AuthField
+import com.mcc.signsaya.components.BackButton
 import com.mcc.signsaya.components.GhostButton
+import com.mcc.signsaya.components.PasswordField
 import com.mcc.signsaya.components.PrimaryButton
 import com.mcc.signsaya.viewmodel.SignUpViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun SignUpScreen(
     onBack: () -> Unit,
     onSignUpSuccess: (email: String) -> Unit,
+    onNavigateToLogin: () -> Unit = onBack,
     viewModel: SignUpViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
-    val snackbarHostState = remember { SnackbarHostState() }
 
-    var passwordVisible by remember { mutableStateOf(false) }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
+    var isNavigating by remember { mutableStateOf(false) }
 
-    // Navigation — consume the event immediately to prevent re-triggering
+    val handleBack = {
+        if (!isNavigating) {
+            isNavigating = true
+            viewModel.dismissBannerError()
+            onBack()
+        }
+    }
+
+    // Clear banner when leaving screen
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.dismissBannerError()
+        }
+    }
+
     LaunchedEffect(state.navigateToVerification) {
         state.navigateToVerification?.let { email ->
             viewModel.onNavigationHandled()
@@ -75,237 +83,224 @@ fun SignUpScreen(
         }
     }
 
-    // Banner errors (network, rate-limit, unexpected) shown as snackbar
+    // Auto-dismiss banner after 3 seconds
     LaunchedEffect(state.bannerError) {
-        state.bannerError?.let { message ->
-            snackbarHostState.showSnackbar(message)
+        if (state.bannerError != null) {
+            delay(3000)
             viewModel.dismissBannerError()
         }
     }
 
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
-        }
-    ) { innerPadding ->
-        Column(
+    Scaffold { innerPadding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(scrollState)
-                .padding(horizontal = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(bottom = innerPadding.calculateBottomPadding())
         ) {
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                IconButton(
-                    onClick = onBack,
-                    enabled = !state.isSubmitting
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onSurface
+                BackButton(
+                    onClick = handleBack,
+                    enabled = !state.isSubmitting && !isNavigating,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+
+                Spacer(Modifier.height(28.dp))
+
+                Text(
+                    text = "Hey! Let's get you in.",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                Text(
+                    text = "Fill in your details and we'll handle the rest.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(32.dp))
+
+                AuthField(
+                    value = state.email,
+                    onValueChange = viewModel::onEmailChange,
+                    label = "Email",
+                    placeholder = "example@email.com",
+                    error = state.emailError,
+                    hideError = state.isSubmitting,
+                    enabled = !state.isSubmitting,
+                    iconRes = R.drawable.ic_mail,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
                     )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            Text(
-                text = "Create your account",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                text = "Start learning Filipino Sign Language today.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            // Email
-            SignSayaTextField(
-                value = state.email,
-                onValueChange = viewModel::onEmailChange,
-                label = "Email",
-                error = state.emailError,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 )
-            )
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
-            // Password
-            SignSayaTextField(
-                value = state.password,
-                onValueChange = viewModel::onPasswordChange,
-                label = "Password",
-                error = state.passwordError,
-                visualTransformation = if (passwordVisible) VisualTransformation.None
-                else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Filled.Visibility
-                            else Icons.Filled.VisibilityOff,
-                            contentDescription = if (passwordVisible) "Hide password"
-                            else "Show password",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                PasswordField(
+                    value = state.password,
+                    onValueChange = viewModel::onPasswordChange,
+                    label = "Password",
+                    placeholder = "••••••••",
+                    error = state.passwordError,
+                    hideError = state.isSubmitting,
+                    enabled = !state.isSubmitting,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                    )
                 )
-            )
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
-            // Confirm password
-            SignSayaTextField(
-                value = state.confirmPassword,
-                onValueChange = viewModel::onConfirmPasswordChange,
-                label = "Confirm Password",
-                error = state.confirmPasswordError,
-                visualTransformation = if (confirmPasswordVisible) VisualTransformation.None
-                else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                        Icon(
-                            imageVector = if (confirmPasswordVisible) Icons.Filled.Visibility
-                            else Icons.Filled.VisibilityOff,
-                            contentDescription = if (confirmPasswordVisible) "Hide password"
-                            else "Show password",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
+                PasswordField(
+                    value = state.confirmPassword,
+                    onValueChange = viewModel::onConfirmPasswordChange,
+                    label = "Confirm Password",
+                    placeholder = "••••••••",
+                    error = state.confirmPasswordError,
+                    hideError = state.isSubmitting,
+                    enabled = !state.isSubmitting,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            viewModel.submitSignUp()
+                        }
+                    )
+                )
+
+                Spacer(Modifier.height(28.dp))
+
+                PrimaryButton(
+                    text = "Create Account",
+                    enabled = state.email.isNotBlank() && state.password.isNotBlank() && state.confirmPassword.isNotBlank() && !state.isSubmitting,
+                    loading = state.isSubmitting,
+                    onClick = {
                         focusManager.clearFocus()
                         viewModel.submitSignUp()
                     }
                 )
-            )
 
-            Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(12.dp))
 
-            PrimaryButton(
-                text = if (state.isSubmitting) "Creating account…" else "Create Account",
-                onClick = {
-                    focusManager.clearFocus()
-                    viewModel.submitSignUp()
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Already have an account?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    GhostButton(
+                        text = "Log In",
+                        onClick = {
+                            viewModel.dismissBannerError()
+                            onNavigateToLogin()
+                        }
+                    )
                 }
-            )
 
-            Spacer(Modifier.height(24.dp))
+                // Debug-only: Skip to verification screen for testing
+                if (BuildConfig.DEBUG) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
 
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Already have an account?",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                GhostButton(
-                    text = "Log in",
-                    onClick = onBack
-                )
+                        GhostButton(
+                            text = "Skip to Verification Screen",
+                            onClick = {
+                                viewModel.dismissBannerError()
+                                onSignUpSuccess("test@example.com")
+                            }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "By continuing, you agree to our",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GhostButton(
+                            text = "Terms of Service",
+                            onClick = { }
+                        )
+                        Text(
+                            text = "and",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        GhostButton(
+                            text = "Privacy Policy",
+                            onClick = { }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
             }
 
-            Spacer(Modifier.height(40.dp))
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Shared text field used across auth screens
-// ---------------------------------------------------------------------------
-
-@Composable
-internal fun SignSayaTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    error: String? = null,
-    trailingIcon: @Composable (() -> Unit)? = null,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            isError = error != null,
-            trailingIcon = trailingIcon,
-            visualTransformation = visualTransformation,
-            keyboardOptions = keyboardOptions,
-            keyboardActions = keyboardActions,
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                errorBorderColor = MaterialTheme.colorScheme.error,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                errorLabelColor = MaterialTheme.colorScheme.error
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        AnimatedVisibility(
-            visible = error != null,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            Text(
-                text = error ?: "",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-            )
+            // Full-width error banner at bottom
+            AnimatedVisibility(
+                visible = state.bannerError != null,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(300)
+                ),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(300)
+                ),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(horizontal = 32.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = state.bannerError ?: "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }

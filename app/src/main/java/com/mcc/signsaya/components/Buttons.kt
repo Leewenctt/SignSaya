@@ -18,24 +18,37 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.mcc.signsaya.R
 
 @Composable
 fun PrimaryButton(
+    modifier: Modifier = Modifier,
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    enabled: Boolean = true,
+    loading: Boolean = false,
 ) {
     AppButton(
         onClick = onClick,
+        enabled = enabled && !loading,
         containerColor = MaterialTheme.colorScheme.primary,
         shadowColor = MaterialTheme.colorScheme.primary.darker(),
         contentColor = MaterialTheme.colorScheme.onPrimary,
         borderColor = MaterialTheme.colorScheme.primary.darker(),
         modifier = modifier
     ) {
-        Text(text = text, style = MaterialTheme.typography.labelLarge)
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                strokeWidth = 2.dp
+            )
+        } else {
+            Text(text = text, style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
 
@@ -87,21 +100,42 @@ fun GhostButton(
                 onClick = onClick
             )
             .graphicsLayer(scaleX = scale, scaleY = scale, alpha = alpha)
-            .padding(vertical = 8.dp, horizontal = 16.dp)
+            .padding(vertical = 6.dp, horizontal = 6.dp)
     ) {
         Text(
             text = text,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.labelLarge
         )
     }
 }
 
-// Internal base button used by PrimaryButton and SecondaryButton
+@Composable
+fun BackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+            .offset(x = (-12).dp)
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_back),
+            contentDescription = "Back",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
 @Composable
 private fun AppButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    enabled: Boolean = true,
     containerColor: Color,
     shadowColor: Color,
     contentColor: Color,
@@ -113,28 +147,40 @@ private fun AppButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
+    val finalContentColor = if (enabled) contentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    val finalContainerColor = if (enabled) containerColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val finalBorderColor = if (enabled) borderColor else Color.Transparent
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp + shadowHeight)
-            .drawBehind {
-                drawRoundRect(
-                    color = shadowColor,
-                    topLeft = Offset(0f, shadowHeight.toPx()),
-                    size = Size(size.width, size.height - shadowHeight.toPx()),
-                    cornerRadius = CornerRadius(cornerRadius.toPx())
-                )
-            }
+            .then(
+                if (enabled) {
+                    Modifier.drawBehind {
+                        drawRoundRect(
+                            color = shadowColor,
+                            topLeft = Offset(0f, shadowHeight.toPx()),
+                            size = Size(size.width, size.height - shadowHeight.toPx()),
+                            cornerRadius = CornerRadius(cornerRadius.toPx())
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
     ) {
         Button(
             onClick = onClick,
+            enabled = enabled,
             shape = RoundedCornerShape(cornerRadius),
             colors = ButtonDefaults.buttonColors(
-                containerColor = containerColor,
-                contentColor = contentColor,
-                disabledContainerColor = containerColor
+                containerColor = finalContainerColor,
+                contentColor = finalContentColor,
+                disabledContainerColor = finalContainerColor,
+                disabledContentColor = finalContentColor
             ),
-            border = BorderStroke(1.dp, borderColor),
+            border = BorderStroke(1.dp, finalBorderColor),
             interactionSource = interactionSource,
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 0.dp,
@@ -145,7 +191,7 @@ private fun AppButton(
                 .fillMaxWidth()
                 .height(48.dp)
                 .align(Alignment.TopStart)
-                .offset(y = if (isPressed) shadowHeight else 0.dp)
+                .offset(y = if (isPressed || !enabled) shadowHeight else 0.dp)
         ) {
             content()
         }

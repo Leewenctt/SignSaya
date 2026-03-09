@@ -13,40 +13,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 private const val RESEND_COOLDOWN = 60
 private const val POLL_INTERVAL_MS = 5_000L
 private const val POLL_MAX_DURATION_MS = 10 * 60 * 1000L // 10 minutes
 
-// ---------------------------------------------------------------------------
-// UI State
-// ---------------------------------------------------------------------------
-
 data class VerificationUiState(
     val isCheckingVerification: Boolean = false,
     val isResending: Boolean = false,
-    val resendCooldownSeconds: Int = RESEND_COOLDOWN,
-
-    // Banner for transient user-facing messages
+    val resendCooldownSeconds: Int = 0, // Start at 0 so button is enabled immediately
     val bannerError: String? = null,
-
-    // Distinct flags — screen can show different UI for each
+    val bannerSuccess: String? = null,
     val networkError: Boolean = false,
     val sessionExpired: Boolean = false,
-
-    // Shown when polling times out after 10 minutes
     val pollingTimedOut: Boolean = false,
-
-    // Consume with onNavigationHandled()
     val navigateToHome: Boolean = false,
 )
-
-// ---------------------------------------------------------------------------
-// ViewModel
-// ---------------------------------------------------------------------------
 
 class EmailVerificationViewModel(
     private val repository: AuthRepository = AuthRepository()
@@ -57,21 +38,14 @@ class EmailVerificationViewModel(
 
     private var cooldownJob: Job? = null
     private var pollJob: Job? = null
+    private var screenEntered = false // Guard to prevent recomposition restarts
 
-    // Guard so recompositions don't restart the timer and polling
-    private var screenEntered = false
-
-    // Call once from LaunchedEffect(Unit) in the screen
     fun onScreenEntered() {
         if (screenEntered) return
         screenEntered = true
-        startCooldown()
+        // Don't start cooldown initially - user can resend immediately
         startPolling()
     }
-
-    // -----------------------------------------------------------------------
-    // Manual check — user taps "I've verified my email"
-    // -----------------------------------------------------------------------
 
     fun checkVerification() {
         if (_state.value.isCheckingVerification) return
@@ -83,7 +57,6 @@ class EmailVerificationViewModel(
 
             val result = repository.checkEmailVerified()
 
-            // For manual checks, show feedback on NotYetVerified
             if (result is VerificationResult.NotYetVerified) {
                 _state.update {
                     it.copy(
@@ -100,10 +73,6 @@ class EmailVerificationViewModel(
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Resend
-    // -----------------------------------------------------------------------
-
     fun resendVerificationEmail() {
         if (_state.value.resendCooldownSeconds > 0 || _state.value.isResending) return
 
@@ -112,7 +81,7 @@ class EmailVerificationViewModel(
 
             when (val result = repository.resendVerificationEmail()) {
                 is AuthResult.Success -> {
-                    _state.update { it.copy(isResending = false) }
+                    _state.update { it.copy(isResending = false, bannerSuccess = "Verification link resent successfully. Please check your email.") }
                     startCooldown()
                 }
                 is AuthResult.Error.TooManyRequests -> {
@@ -126,10 +95,6 @@ class EmailVerificationViewModel(
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Events
-    // -----------------------------------------------------------------------
-
     fun onNavigationHandled() {
         _state.update { it.copy(navigateToHome = false) }
     }
@@ -138,11 +103,10 @@ class EmailVerificationViewModel(
         _state.update { it.copy(bannerError = null, networkError = false) }
     }
 
-    // -----------------------------------------------------------------------
-    // Private helpers
-    // -----------------------------------------------------------------------
+    fun dismissBannerSuccess() {
+        _state.update { it.copy(bannerSuccess = null) }
+    }
 
-    // Used by polling only — silent on NotYetVerified
     private fun handleVerificationResult(result: VerificationResult) {
         when (result) {
             is VerificationResult.Verified -> {
@@ -150,7 +114,7 @@ class EmailVerificationViewModel(
                 _state.update { it.copy(navigateToHome = true) }
             }
             is VerificationResult.NotYetVerified -> {
-                // Polling is silent — no banner spam every 5 seconds
+                // Silent — no banner spam during polling
             }
             is VerificationResult.NetworkError -> {
                 _state.update { it.copy(networkError = true) }
@@ -183,11 +147,9 @@ class EmailVerificationViewModel(
             while (true) {
                 delay(POLL_INTERVAL_MS)
 
-                // Stop if already resolved
                 val current = _state.value
                 if (current.navigateToHome || current.sessionExpired) break
 
-                // Stop after 10 minutes — user has likely abandoned or missed the email
                 if (System.currentTimeMillis() - startTime >= POLL_MAX_DURATION_MS) {
                     _state.update { it.copy(pollingTimedOut = true) }
                     break

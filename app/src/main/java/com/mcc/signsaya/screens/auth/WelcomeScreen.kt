@@ -47,7 +47,7 @@ fun WelcomeScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            GhostButton(text = "Continue as guest", onClick = onContinueAsGuest)
+            GhostButton(text = "Continue without an account  ", onClick = onContinueAsGuest)
 
             Spacer(Modifier.height(48.dp))
         }
