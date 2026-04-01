@@ -25,7 +25,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.mcc.signsaya.R
 import com.mcc.signsaya.components.*
@@ -68,7 +68,6 @@ fun SignUpScreen(
         handleBack()
     }
 
-    // Handle one-shot events from ViewModel
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
@@ -78,7 +77,6 @@ fun SignUpScreen(
         }
     }
 
-    // Clear banner when leaving screen
     DisposableEffect(Unit) {
         onDispose {
             viewModel.dismissBanner()
@@ -89,30 +87,21 @@ fun SignUpScreen(
 
     fun onGoogleSignInClick() {
         val credentialManager = CredentialManager.create(context)
-        val googleIdOption = GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(webClientId)
-            .build()
-
-        val request = GetCredentialRequest.Builder()
-            .addCredentialOption(googleIdOption)
-            .build()
+        val googleIdOption = GetSignInWithGoogleOption.Builder(webClientId).build()
+        val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
 
         scope.launch {
             try {
                 val result = credentialManager.getCredential(context, request)
                 val googleIdToken = GoogleIdTokenCredential.createFrom(result.credential.data).idToken
                 viewModel.onGoogleSignIn(googleIdToken)
-            } catch (e: GetCredentialCancellationException) {
-                // User dismissed the picker — no action needed
-                Log.d(TAG, "Google sign-in cancelled by user")
+            } catch (_: GetCredentialCancellationException) {
+                // User dismissed the picker
             } catch (e: GetCredentialException) {
-                // Credential API error (e.g. no accounts, misconfigured client ID, missing SHA-1)
-                Log.e(TAG, "GetCredentialException: ${e.type} — ${e.message}", e)
+                Log.e(TAG, "GetCredentialException: ${e.type} - ${e.message}")
                 viewModel.onGoogleSignInError("Google sign-in failed. Please try again.")
             } catch (e: Exception) {
-                // Unexpected error (e.g. token parsing failure)
-                Log.e(TAG, "Unexpected Google sign-in error: ${e.message}", e)
+                Log.e(TAG, "Unexpected Google sign-in error: ${e.message}")
                 viewModel.onGoogleSignInError("Google sign-in failed. Please try again.")
             }
         }
