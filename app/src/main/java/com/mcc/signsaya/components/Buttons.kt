@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -43,8 +44,9 @@ fun PrimaryButton(
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                strokeWidth = 2.dp
+                color = MaterialTheme.colorScheme.onPrimary,
+                strokeWidth = 2.dp,
+                strokeCap = StrokeCap.Round
             )
         } else {
             Text(text = text, style = MaterialTheme.typography.labelLarge)
@@ -53,17 +55,63 @@ fun PrimaryButton(
 }
 
 @Composable
-fun SecondaryButton(
-    text: String,
+fun GoogleButton(
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    enabled: Boolean = true,
+    loading: Boolean = false,
 ) {
     AppButton(
         onClick = onClick,
+        enabled = enabled && !loading,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shadowColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        borderColor = MaterialTheme.colorScheme.outlineVariant,
+        modifier = modifier
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = MaterialTheme.colorScheme.primary,
+                strokeWidth = 2.dp,
+                strokeCap = StrokeCap.Round
+            )
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_google),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = Color.Unspecified
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = "CONTINUE WITH GOOGLE",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SecondaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    AppButton(
+        onClick = onClick,
+        enabled = enabled,
         containerColor = MaterialTheme.colorScheme.background,
-        shadowColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+        shadowColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+        contentColor = MaterialTheme.colorScheme.primary,
+        borderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
         modifier = modifier
     ) {
         Text(text = text, style = MaterialTheme.typography.labelLarge)
@@ -74,20 +122,21 @@ fun SecondaryButton(
 fun GhostButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
-        animationSpec = tween(100),
+        targetValue = if (isPressed && enabled) 0.98f else 1f,
+        animationSpec = tween(150),
         label = "ghostScale"
     )
 
     val alpha by animateFloatAsState(
-        targetValue = if (isPressed) 0.6f else 1f,
-        animationSpec = tween(100),
+        targetValue = if (isPressed && enabled) 0.6f else 1f,
+        animationSpec = tween(150),
         label = "ghostAlpha"
     )
 
@@ -97,6 +146,7 @@ fun GhostButton(
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
+                enabled = enabled,
                 onClick = onClick
             )
             .graphicsLayer(scaleX = scale, scaleY = scale, alpha = alpha)
@@ -104,7 +154,7 @@ fun GhostButton(
     ) {
         Text(
             text = text,
-            color = MaterialTheme.colorScheme.primary,
+            color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
             style = MaterialTheme.typography.labelLarge
         )
     }
@@ -119,8 +169,8 @@ fun BackButton(
     IconButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier
-            .offset(x = (-12).dp)
+        // Negative offset compensates for IconButton's internal padding to align with edge content
+        modifier = modifier.offset(x = (-12).dp)
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_back),
@@ -141,7 +191,7 @@ private fun AppButton(
     contentColor: Color,
     borderColor: Color = Color.Transparent,
     shadowHeight: Dp = 3.dp,
-    cornerRadius: Dp = 16.dp,
+    cornerRadius: Dp = 14.dp,
     content: @Composable RowScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }

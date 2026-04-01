@@ -1,6 +1,8 @@
 package com.mcc.signsaya.screens.auth
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +22,8 @@ fun WelcomeScreen(
     onCreateAccount: () -> Unit,
     onContinueAsGuest: () -> Unit
 ) {
+    var isNavigating by remember { mutableStateOf(false) }
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
@@ -28,7 +32,7 @@ fun WelcomeScreen(
                 .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(64.dp))
+            Spacer(Modifier.weight(1f))
 
             Image(
                 painter = painterResource(id = R.drawable.ic_logo),
@@ -39,17 +43,87 @@ fun WelcomeScreen(
 
             Spacer(Modifier.weight(1f))
 
-            PrimaryButton(text = "Get started", onClick = onCreateAccount)
+            PrimaryButton(
+                text = "GET STARTED",
+                onClick = {
+                    if (!isNavigating) {
+                        isNavigating = true
+                        onCreateAccount()
+                    }
+                }
+            )
 
             Spacer(Modifier.height(12.dp))
 
-            SecondaryButton(text = "I already have an account", onClick = onLogin)
+            SecondaryButton(
+                text = "I ALREADY HAVE AN ACCOUNT",
+                onClick = {
+                    if (!isNavigating) {
+                        isNavigating = true
+                        onLogin()
+                    }
+                }
+            )
 
             Spacer(Modifier.height(12.dp))
 
-            GhostButton(text = "Continue without an account  ", onClick = onContinueAsGuest)
+            GhostButton(
+                text = "CONTINUE AS GUEST",
+                onClick = {
+                    if (!isNavigating) {
+                        isNavigating = true
+                        onContinueAsGuest()
+                    }
+                }
+            )
 
-            Spacer(Modifier.height(48.dp))
+            Spacer(Modifier.height(52.dp))
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "By continuing, you agree to our ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Terms of Service",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { /* TODO */ }
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "and ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Privacy Policy",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { /* TODO */ }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
         }
     }
 }

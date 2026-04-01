@@ -2,6 +2,8 @@ package com.mcc.signsaya.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mcc.signsaya.components.Banner
+import com.mcc.signsaya.components.BannerType
 import com.mcc.signsaya.repository.AuthRepository
 import com.mcc.signsaya.repository.AuthResult
 import com.mcc.signsaya.repository.VerificationResult
@@ -20,17 +22,17 @@ private const val POLL_MAX_DURATION_MS = 10 * 60 * 1000L // 10 minutes
 data class VerificationUiState(
     val isCheckingVerification: Boolean = false,
     val isResending: Boolean = false,
-    val resendCooldownSeconds: Int = 0, // Start at 0 so button is enabled immediately
-    val bannerError: String? = null,
-    val bannerSuccess: String? = null,
+    val resendCooldownSeconds: Int = 0,
+    val banner: Banner? = null,
     val networkError: Boolean = false,
     val sessionExpired: Boolean = false,
     val pollingTimedOut: Boolean = false,
     val navigateToHome: Boolean = false,
+    val isInitialEmailSent: Boolean = false
 )
 
 class EmailVerificationViewModel(
-    private val repository: AuthRepository = AuthRepository()
+    private val repository: AuthRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VerificationUiState())
@@ -38,38 +40,49 @@ class EmailVerificationViewModel(
 
     private var cooldownJob: Job? = null
     private var pollJob: Job? = null
-    private var screenEntered = false // Guard to prevent recomposition restarts
+    
+    @Volatile
+    private var screenEntered = false
 
     fun onScreenEntered() {
         if (screenEntered) return
         screenEntered = true
-        // Don't start cooldown initially - user can resend immediately
-        startPolling()
+        // No longer starting polling automatically until email is sent
     }
 
-    fun checkVerification() {
-        if (_state.value.isCheckingVerification) return
 
+    fun sendInitialVerificationEmail() {
+        if (_state.value.isResending) return
+        
         viewModelScope.launch {
-            _state.update {
-                it.copy(isCheckingVerification = true, bannerError = null, networkError = false)
-            }
+            _state.update { it.copy(isResending = true, banner = null) }
 
-            val result = repository.checkEmailVerified()
-
-            if (result is VerificationResult.NotYetVerified) {
-                _state.update {
-                    it.copy(
-                        isCheckingVerification = false,
-                        bannerError = "Your email hasn't been verified yet. " +
-                                "Check your inbox and click the link we sent you."
-                    )
+            when (val result = repository.resendVerificationEmail()) {
+                is AuthResult.Success -> {
+                    _state.update { 
+                        it.copy(
+                            isResending = false,
+                            isInitialEmailSent = true,
+                            networkError = false,
+                            banner = Banner(
+                                message = "Verification link sent. Please check your email.",
+                                type = BannerType.SUCCESS
+                            )
+                        ) 
+                    }
+                    startCooldown()
+                    startPolling()
                 }
-                return@launch
+                is AuthResult.Error -> {
+                    _state.update { 
+                        it.copy(
+                            isResending = false, 
+                            networkError = result is AuthResult.Error.Network,
+                            banner = Banner(result.message, BannerType.ERROR)
+                        ) 
+                    }
+                }
             }
-
-            handleVerificationResult(result)
-            _state.update { it.copy(isCheckingVerification = false) }
         }
     }
 
@@ -77,19 +90,41 @@ class EmailVerificationViewModel(
         if (_state.value.resendCooldownSeconds > 0 || _state.value.isResending) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isResending = true, bannerError = null) }
+            _state.update { it.copy(isResending = true, banner = null) }
 
             when (val result = repository.resendVerificationEmail()) {
                 is AuthResult.Success -> {
-                    _state.update { it.copy(isResending = false, bannerSuccess = "Verification link resent successfully. Please check your email.") }
+                    _state.update { 
+                        it.copy(
+                            isResending = false, 
+                            networkError = false,
+                            banner = Banner(
+                                message = "Verification link sent. Please check your email.",
+                                type = BannerType.SUCCESS
+                            )
+                        ) 
+                    }
                     startCooldown()
+                    startPolling()
                 }
                 is AuthResult.Error.TooManyRequests -> {
-                    _state.update { it.copy(isResending = false, bannerError = result.message) }
+                    _state.update { 
+                        it.copy(
+                            isResending = false, 
+                            networkError = false,
+                            banner = Banner(result.message, BannerType.ERROR)
+                        ) 
+                    }
                     startCooldown()
                 }
                 is AuthResult.Error -> {
-                    _state.update { it.copy(isResending = false, bannerError = result.message) }
+                    _state.update { 
+                        it.copy(
+                            isResending = false, 
+                            networkError = result is AuthResult.Error.Network,
+                            banner = Banner(result.message, BannerType.ERROR)
+                        ) 
+                    }
                 }
             }
         }
@@ -99,32 +134,48 @@ class EmailVerificationViewModel(
         _state.update { it.copy(navigateToHome = false) }
     }
 
-    fun dismissBannerError() {
-        _state.update { it.copy(bannerError = null, networkError = false) }
+    fun dismissBanner() {
+        _state.update { it.copy(banner = null) }
     }
 
-    fun dismissBannerSuccess() {
-        _state.update { it.copy(bannerSuccess = null) }
+    /*fun showTestSuccess() {
+        _state.update { 
+            it.copy(
+                banner = Banner(message = "Test: Success banner triggered!", type = BannerType.SUCCESS)
+            ) 
+        }
     }
+
+    fun showTestError() {
+        _state.update { 
+            it.copy(
+                banner = Banner(message = "Test: Error banner triggered!", type = BannerType.ERROR)
+            ) 
+        }
+    }*/
 
     private fun handleVerificationResult(result: VerificationResult) {
         when (result) {
             is VerificationResult.Verified -> {
                 pollJob?.cancel()
-                _state.update { it.copy(navigateToHome = true) }
+                _state.update { it.copy(navigateToHome = true, networkError = false) }
             }
             is VerificationResult.NotYetVerified -> {
-                // Silent — no banner spam during polling
+                _state.update { it.copy(networkError = false) }
             }
             is VerificationResult.NetworkError -> {
                 _state.update { it.copy(networkError = true) }
             }
             is VerificationResult.SessionExpired -> {
                 pollJob?.cancel()
-                _state.update { it.copy(sessionExpired = true) }
+                _state.update { it.copy(sessionExpired = true, pollingTimedOut = false) }
             }
             is VerificationResult.Unexpected -> {
-                _state.update { it.copy(bannerError = result.message) }
+                _state.update { 
+                    it.copy(
+                        banner = Banner(message = result.message, type = BannerType.ERROR)
+                    ) 
+                }
             }
         }
     }
@@ -142,11 +193,12 @@ class EmailVerificationViewModel(
     private fun startPolling() {
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
+            // Reset error states immediately when starting/restarting polling
+            _state.update { it.copy(pollingTimedOut = false, networkError = false) }
+            
             val startTime = System.currentTimeMillis()
 
             while (true) {
-                delay(POLL_INTERVAL_MS)
-
                 val current = _state.value
                 if (current.navigateToHome || current.sessionExpired) break
 
@@ -155,14 +207,22 @@ class EmailVerificationViewModel(
                     break
                 }
 
-                handleVerificationResult(repository.checkEmailVerified())
+                try {
+                    handleVerificationResult(repository.checkEmailVerified())
+                } catch (_: Exception) {
+                    _state.update { 
+                        it.copy(
+                            banner = Banner(
+                                message = "We couldn't check your verification status. Please try again.",
+                                type = BannerType.ERROR
+                            )
+                        ) 
+                    }
+                }
+
+                // Delay at the end of the loop so the first check is immediate
+                delay(POLL_INTERVAL_MS)
             }
         }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        cooldownJob?.cancel()
-        pollJob?.cancel()
     }
 }

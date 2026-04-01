@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">SignSaya</string>
+    <string name="default_web_client_id" translatable="false">697550512441-1tlufri9315g256hql8aegek4r3gamce.apps.googleusercontent.com</string>
 </resources>

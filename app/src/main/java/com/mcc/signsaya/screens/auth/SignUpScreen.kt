@@ -1,93 +1,120 @@
 package com.mcc.signsaya.screens.auth
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import android.util.Log
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.mcc.signsaya.BuildConfig
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.mcc.signsaya.R
-import com.mcc.signsaya.components.AuthField
-import com.mcc.signsaya.components.BackButton
-import com.mcc.signsaya.components.GhostButton
-import com.mcc.signsaya.components.PasswordField
-import com.mcc.signsaya.components.PrimaryButton
+import com.mcc.signsaya.components.*
+import com.mcc.signsaya.viewmodel.SignUpEvent
 import com.mcc.signsaya.viewmodel.SignUpViewModel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+
+private const val TAG = "SignUpScreen"
 
 @Composable
 fun SignUpScreen(
     onBack: () -> Unit,
     onSignUpSuccess: (email: String) -> Unit,
     onNavigateToLogin: () -> Unit = onBack,
-    viewModel: SignUpViewModel = viewModel()
+    onGoogleSignUpSuccess: () -> Unit,
+    viewModel: SignUpViewModel
 ) {
     val state by viewModel.state.collectAsState()
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
     var isNavigating by remember { mutableStateOf(false) }
 
-    val handleBack = {
-        if (!isNavigating) {
-            isNavigating = true
-            viewModel.dismissBannerError()
-            onBack()
+    val handleBack = remember(isNavigating) {
+        {
+            if (!isNavigating) {
+                isNavigating = true
+                viewModel.dismissBanner()
+                onBack()
+            }
+        }
+    }
+
+    BackHandler(enabled = !state.isSubmitting && !isNavigating) {
+        handleBack()
+    }
+
+    // Handle one-shot events from ViewModel
+    LaunchedEffect(Unit) {
+        viewModel.events.collectLatest { event ->
+            when (event) {
+                is SignUpEvent.NavigateToVerification -> onSignUpSuccess(event.email)
+                is SignUpEvent.SignUpSuccess -> onGoogleSignUpSuccess()
+            }
         }
     }
 
     // Clear banner when leaving screen
     DisposableEffect(Unit) {
         onDispose {
-            viewModel.dismissBannerError()
+            viewModel.dismissBanner()
         }
     }
 
-    LaunchedEffect(state.navigateToVerification) {
-        state.navigateToVerification?.let { email ->
-            viewModel.onNavigationHandled()
-            onSignUpSuccess(email)
-        }
-    }
+    val webClientId = stringResource(id = R.string.default_web_client_id)
 
-    // Auto-dismiss banner after 3 seconds
-    LaunchedEffect(state.bannerError) {
-        if (state.bannerError != null) {
-            delay(3000)
-            viewModel.dismissBannerError()
+    fun onGoogleSignInClick() {
+        val credentialManager = CredentialManager.create(context)
+        val googleIdOption = GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(webClientId)
+            .build()
+
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
+            .build()
+
+        scope.launch {
+            try {
+                val result = credentialManager.getCredential(context, request)
+                val googleIdToken = GoogleIdTokenCredential.createFrom(result.credential.data).idToken
+                viewModel.onGoogleSignIn(googleIdToken)
+            } catch (e: GetCredentialCancellationException) {
+                // User dismissed the picker — no action needed
+                Log.d(TAG, "Google sign-in cancelled by user")
+            } catch (e: GetCredentialException) {
+                // Credential API error (e.g. no accounts, misconfigured client ID, missing SHA-1)
+                Log.e(TAG, "GetCredentialException: ${e.type} — ${e.message}", e)
+                viewModel.onGoogleSignInError("Google sign-in failed. Please try again.")
+            } catch (e: Exception) {
+                // Unexpected error (e.g. token parsing failure)
+                Log.e(TAG, "Unexpected Google sign-in error: ${e.message}", e)
+                viewModel.onGoogleSignInError("Google sign-in failed. Please try again.")
+            }
         }
     }
 
@@ -113,7 +140,7 @@ fun SignUpScreen(
                 Spacer(Modifier.height(28.dp))
 
                 Text(
-                    text = "Hey! Let's get you in.",
+                    text = "Great! Let's get you in",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.fillMaxWidth()
@@ -122,9 +149,9 @@ fun SignUpScreen(
                 Spacer(Modifier.height(8.dp))
 
                 Text(
-                    text = "Fill in your details and we'll handle the rest.",
+                    text = "Sign up below and start learning with SignSaya today.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -158,6 +185,8 @@ fun SignUpScreen(
                     error = state.passwordError,
                     hideError = state.isSubmitting,
                     enabled = !state.isSubmitting,
+                    isPasswordVisible = passwordVisible,
+                    onPasswordVisibleChange = { passwordVisible = it },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Next
@@ -177,6 +206,8 @@ fun SignUpScreen(
                     error = state.confirmPasswordError,
                     hideError = state.isSubmitting,
                     enabled = !state.isSubmitting,
+                    isPasswordVisible = confirmPasswordVisible,
+                    onPasswordVisibleChange = { confirmPasswordVisible = it },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Done
@@ -184,6 +215,8 @@ fun SignUpScreen(
                     keyboardActions = KeyboardActions(
                         onDone = {
                             focusManager.clearFocus()
+                            passwordVisible = false
+                            confirmPasswordVisible = false
                             viewModel.submitSignUp()
                         }
                     )
@@ -192,20 +225,53 @@ fun SignUpScreen(
                 Spacer(Modifier.height(28.dp))
 
                 PrimaryButton(
-                    text = "Create Account",
-                    enabled = state.email.isNotBlank() && state.password.isNotBlank() && state.confirmPassword.isNotBlank() && !state.isSubmitting,
-                    loading = state.isSubmitting,
+                    text = "CREATE ACCOUNT",
+                    enabled = state.isFormComplete && !state.isSubmitting,
+                    loading = state.isSubmitting && !state.isGoogleSigningIn,
                     onClick = {
                         focusManager.clearFocus()
+                        passwordVisible = false
+                        confirmPasswordVisible = false
                         viewModel.submitSignUp()
                     }
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    Text(
+                        text = "OR",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                GoogleButton(
+                    onClick = ::onGoogleSignInClick,
+                    enabled = !state.isSubmitting,
+                    loading = state.isGoogleSigningIn
+                )
+
+                Spacer(Modifier.weight(1f))
 
                 Row(
                     horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 12.dp)
                 ) {
                     Text(
                         text = "Already have an account?",
@@ -213,94 +279,20 @@ fun SignUpScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     GhostButton(
-                        text = "Log In",
+                        text = "LOG IN",
                         onClick = {
-                            viewModel.dismissBannerError()
+                            viewModel.dismissBanner()
                             onNavigateToLogin()
                         }
                     )
                 }
-
-                // Debug-only: Skip to verification screen for testing
-                if (BuildConfig.DEBUG) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-
-                        GhostButton(
-                            text = "Skip to Verification Screen",
-                            onClick = {
-                                viewModel.dismissBannerError()
-                                onSignUpSuccess("test@example.com")
-                            }
-                        )
-                    }
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "By continuing, you agree to our",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        GhostButton(
-                            text = "Terms of Service",
-                            onClick = { }
-                        )
-                        Text(
-                            text = "and",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        GhostButton(
-                            text = "Privacy Policy",
-                            onClick = { }
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
             }
 
-            // Full-width error banner at bottom
-            AnimatedVisibility(
-                visible = state.bannerError != null,
-                enter = slideInVertically(
-                    initialOffsetY = { it },
-                    animationSpec = tween(300)
-                ),
-                exit = slideOutVertically(
-                    targetOffsetY = { it },
-                    animationSpec = tween(300)
-                ),
+            BannerHost(
+                banner = state.banner,
+                onDismiss = { viewModel.dismissBanner() },
                 modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.errorContainer)
-                        .padding(horizontal = 32.dp, vertical = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = state.bannerError ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
+            )
         }
     }
 }

@@ -13,7 +13,7 @@ data class ProfileUiState(
 )
 
 class ProfileViewModel(
-    private val repository: AuthRepository = AuthRepository()
+    private val repository: AuthRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())

@@ -7,7 +7,10 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
+import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
+import java.io.IOException
 
 sealed class AuthResult {
     object Success : AuthResult()
@@ -35,71 +38,188 @@ class AuthRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) {
 
+    private suspend fun <T> withRetry(
+        times: Int = 3,
+        initialDelay: Long = 1000,
+        maxDelay: Long = 4000,
+        factor: Double = 2.0,
+        block: suspend () -> T
+    ): T {
+        var currentDelay = initialDelay
+        repeat(times - 1) {
+            try {
+                return block()
+            } catch (_: FirebaseNetworkException) {
+                // Network error, retry
+            } catch (_: IOException) {
+                // Network error, retry
+            }
+            delay(currentDelay)
+            currentDelay = (currentDelay * factor).toLong().coerceAtMost(maxDelay)
+        }
+        return block() // Last attempt
+    }
+
     suspend fun signUpWithEmail(email: String, password: String): AuthResult {
-        require(email.isNotBlank()) { "Email cannot be blank" }
-        require(password.isNotBlank()) { "Password cannot be blank" }
+        if (email.isBlank() || password.isBlank()) {
+            return AuthResult.Error.InvalidInput(
+                message = "Email and password cannot be empty.",
+                cause = AuthErrorCause.UNKNOWN
+            )
+        }
 
         return try {
-            val result = auth.createUserWithEmailAndPassword(email, password).await()
-            result.user?.sendEmailVerification()?.await()
+            withRetry {
+                auth.createUserWithEmailAndPassword(email, password).await()
+            }
+
+            
             AuthResult.Success
         } catch (_: FirebaseAuthWeakPasswordException) {
             AuthResult.Error.InvalidInput(
-                message = "Password must be at least 8 characters long " +
-                        "and include an uppercase letter and a number.",
+                message = "Invalid password.",
                 cause = AuthErrorCause.PASSWORD
             )
         } catch (_: FirebaseAuthInvalidCredentialsException) {
             AuthResult.Error.InvalidInput(
-                message = "Invalid email address. Please check and try again",
+                message = "Invalid email address.",
                 cause = AuthErrorCause.EMAIL
             )
         } catch (_: FirebaseAuthUserCollisionException) {
             AuthResult.Error.Conflict(
-                "This email address is already in use."
+                "Email address is already in use."
             )
         } catch (_: FirebaseNetworkException) {
             AuthResult.Error.Network(
-                "We couldn't connect to the server. " +
-                        "Check your internet connection and try again."
+                "Network error. No internet connection."
             )
         } catch (e: FirebaseAuthException) {
             when (e.errorCode) {
                 "ERROR_TOO_MANY_REQUESTS" -> AuthResult.Error.TooManyRequests(
-                    "Too many attempts. Please wait a few minutes before trying again."
+                    "Too many attempts. Please try again later."
                 )
-                else -> e.toUnexpectedError()
+                else -> toUnexpectedError()
             }
         } catch (_: Exception) {
             AuthResult.Error.Unexpected(
-                "Something went wrong. Please try again in a moment."
+                "Something went wrong. Please try again later."
             )
         }
     }
 
-    suspend fun resendVerificationEmail(): AuthResult {
+    suspend fun loginWithEmail(email: String, password: String): AuthResult {
+        if (email.isBlank() || password.isBlank()) {
+            return AuthResult.Error.InvalidInput(
+                message = "Email and password cannot be empty.",
+                cause = AuthErrorCause.UNKNOWN
+            )
+        }
+
         return try {
-            auth.currentUser?.sendEmailVerification()?.await()
-                ?: return AuthResult.Error.Unexpected(
-                    "No signed-in account found. Please sign up and try again."
-                )
+            withRetry {
+                auth.signInWithEmailAndPassword(email, password).await()
+            }
             AuthResult.Success
+        } catch (_: FirebaseAuthInvalidUserException) {
+            AuthResult.Error.InvalidInput(
+                message = "Invalid email address.",
+                cause = AuthErrorCause.EMAIL
+            )
+        } catch (_: FirebaseAuthInvalidCredentialsException) {
+            AuthResult.Error.InvalidInput(
+                message = "Incorrect email or password.",
+                cause = AuthErrorCause.UNKNOWN
+            )
         } catch (_: FirebaseNetworkException) {
             AuthResult.Error.Network(
-                "We couldn't send the verification email. " +
-                        "Check your internet connection and try again."
+                "Network error. No internet connection."
             )
         } catch (e: FirebaseAuthException) {
             when (e.errorCode) {
                 "ERROR_TOO_MANY_REQUESTS" -> AuthResult.Error.TooManyRequests(
-                    "Too many attempts. Please wait a few minutes before trying again."
+                    "Too many attempts. Please try again later."
                 )
-                else -> e.toUnexpectedError()
+                else -> toUnexpectedError()
             }
         } catch (_: Exception) {
             AuthResult.Error.Unexpected(
-                "We couldn't send the verification email. Please try again in a moment."
+                "Something went wrong. Please try again later."
             )
+        }
+    }
+
+    suspend fun loginWithGoogle(idToken: String): AuthResult {
+        return try {
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            withRetry {
+                auth.signInWithCredential(credential).await()
+            }
+            AuthResult.Success
+        } catch (_: FirebaseAuthUserCollisionException) {
+            AuthResult.Error.Conflict("An account already exists with the same email address but different sign-in credentials.")
+        } catch (_: FirebaseNetworkException) {
+            AuthResult.Error.Network("Network error. No internet connection.")
+        } catch (e: FirebaseAuthException) {
+            when (e.errorCode) {
+                "ERROR_TOO_MANY_REQUESTS" -> AuthResult.Error.TooManyRequests("Too many attempts. Please try again later.")
+                else -> toUnexpectedError()
+            }
+        } catch (_: Exception) {
+            AuthResult.Error.Unexpected("Google sign-in failed. Please try again later.")
+        }
+    }
+
+    suspend fun resendVerificationEmail(): AuthResult {
+        val currentUser = auth.currentUser ?: return AuthResult.Error.Unexpected(
+            "Session not found. Please login or sign up."
+        )
+
+        return try {
+            withRetry {
+                currentUser.sendEmailVerification().await()
+            }
+            AuthResult.Success
+        } catch (_: FirebaseNetworkException) {
+            AuthResult.Error.Network(
+                "Network error. No internet connection."
+            )
+        } catch (e: FirebaseAuthException) {
+            when (e.errorCode) {
+                "ERROR_TOO_MANY_REQUESTS" -> AuthResult.Error.TooManyRequests(
+                    "Too many attempts. Please try again later."
+                )
+                else -> toUnexpectedError()
+            }
+        } catch (_: Exception) {
+            AuthResult.Error.Unexpected(
+                "Something went wrong. Please try again later."
+            )
+        }
+    }
+
+    suspend fun sendPasswordResetEmail(email: String): AuthResult {
+        if (email.isBlank()) {
+            return AuthResult.Error.InvalidInput("Email cannot be empty.")
+        }
+        return try {
+            withRetry {
+                auth.sendPasswordResetEmail(email).await()
+            }
+            AuthResult.Success
+        } catch (_: FirebaseAuthInvalidUserException) {
+            // Email enumeration protection: return success even if user not found
+            AuthResult.Success
+        } catch (_: FirebaseNetworkException) {
+            AuthResult.Error.Network("Network error. No internet connection.")
+        } catch (e: FirebaseAuthException) {
+            when (e.errorCode) {
+                "ERROR_TOO_MANY_REQUESTS" -> AuthResult.Error.TooManyRequests(
+                    "Too many attempts. Please try again later."
+                )
+                else -> toUnexpectedError()
+            }
+        } catch (_: Exception) {
+            AuthResult.Error.Unexpected("Something went wrong. Please try again later.")
         }
     }
 
@@ -108,11 +228,13 @@ class AuthRepository(
             ?: return VerificationResult.SessionExpired
 
         return try {
-            user.reload().await()
-            if (user.isEmailVerified) {
-                VerificationResult.Verified
-            } else {
-                VerificationResult.NotYetVerified
+            withRetry {
+                user.reload().await()
+                if (user.isEmailVerified) {
+                    VerificationResult.Verified
+                } else {
+                    VerificationResult.NotYetVerified
+                }
             }
         } catch (_: FirebaseNetworkException) {
             VerificationResult.NetworkError
@@ -120,20 +242,24 @@ class AuthRepository(
             VerificationResult.SessionExpired
         } catch (_: Exception) {
             VerificationResult.Unexpected(
-                "We couldn't check your verification status. Please try again."
+                "Something went wrong. Please try again later."
             )
         }
     }
 
-    fun signOut() {
-        auth.signOut()
+    fun signOut(): Result<Unit> {
+        return try {
+            auth.signOut()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     val currentUser get() = auth.currentUser
 
+    private fun toUnexpectedError(): AuthResult.Error.Unexpected =
+        AuthResult.Error.Unexpected(
+            "Something went wrong. Please try again later."
+        )
 }
-
-private fun FirebaseAuthException.toUnexpectedError(): AuthResult.Error.Unexpected =
-    AuthResult.Error.Unexpected(
-        "Something went wrong (code: $errorCode). Please try again or contact support."
-    )
