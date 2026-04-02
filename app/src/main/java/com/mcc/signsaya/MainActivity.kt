@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.google.firebase.auth.FirebaseAuth
+import com.mcc.signsaya.navigation.SignSayaApp
 import com.mcc.signsaya.ui.theme.SignSayaTheme
 
 class MainActivity : ComponentActivity() {
@@ -12,14 +12,23 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val currentUser = FirebaseAuth.getInstance().currentUser
-        // A user is considered "logged in" if they have an active session, 
-        // regardless of email verification status.
+        val app = applicationContext as SignSayaApplication
+        val repository = app.authRepository
+        val currentUser = repository.currentUser
+
         val isUserLoggedIn = currentUser != null
+        val isEmailVerified = currentUser?.isEmailVerified == true
+        val isVerificationDismissed = repository.isVerificationDismissed()
+        val userEmail = currentUser?.email ?: ""
 
         setContent {
             SignSayaTheme {
-                SignSayaApp(isUserLoggedIn = isUserLoggedIn)
+                SignSayaApp(
+                    isUserLoggedIn = isUserLoggedIn,
+                    isEmailVerified = isEmailVerified,
+                    isVerificationDismissed = isVerificationDismissed,
+                    userEmail = userEmail
+                )
             }
         }
     }

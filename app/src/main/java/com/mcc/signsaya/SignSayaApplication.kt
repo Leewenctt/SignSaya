@@ -1,8 +1,8 @@
 package com.mcc.signsaya
 
 import android.app.Application
-import com.mcc.signsaya.repository.AuthRepository
-import com.mcc.signsaya.viewmodel.ViewModelFactory
+import com.mcc.signsaya.feature.auth.repository.AuthRepository
+import com.mcc.signsaya.di.ViewModelFactory
 
 class SignSayaApplication : Application() {
 
@@ -12,7 +12,7 @@ class SignSayaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         
-        authRepository = AuthRepository()
+        authRepository = AuthRepository(this)
         viewModelFactory = ViewModelFactory(authRepository)
     }
 }
