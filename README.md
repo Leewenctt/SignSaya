@@ -155,10 +155,10 @@ Sync Gradle and run the project on an Android device or emulator.
 
 <div align="center">
 
-Click the button below or get the APK from the [Releases](https://github.com/your-username/SignSaya/releases/latest) page.
+Click the button below or get the APK from the [Releases](https://github.com/Leewenctt/SignSaya/releases/latest) page.
 
 
-[![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](https://github.com/your-username/SignSaya/releases/latest)
+[![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](https://github.com/Leewenctt/SignSaya/releases/latest)
 
 <br>
 <br>
