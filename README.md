@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="assets/logo.png" alt="Logo" width="100%" />
-
-# SignSaya
+<img src="assets/Logo.png" alt="Logo" width="35%" />
 
 <p> A Mobile Application for Filipino Sign Language Interpretation Using Real-Time Gesture Recognition to Aid in Deaf Communication</p>
 
