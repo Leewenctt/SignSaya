@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.png" alt="Logo" width="100%" />
+<img src="assets/logo.png" alt="Logo" width="100%" />
 
 # SignSaya
 
