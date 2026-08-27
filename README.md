@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/Logo.png" alt="Logo" width="35%" />
+<img src="assets/Logo.png" alt="Logo" width="40%" />
 <br>
 
 A Mobile Application for Filipino Sign Language Interpretation Using Real-Time Gesture Recognition to Aid in Deaf Communication
@@ -73,7 +73,7 @@ A Mobile Application for Filipino Sign Language Interpretation Using Real-Time G
 </td>
 <td width="50%" valign="top">
 
-<div align="center"><h3>Connectivity & Sync</h3></div><br>
+<div align="center"><h3>Accounts & Sync</h3></div><br>
 
 - **Google Sign-In and Guest account** — Sign in with little to no setup required.
 - **Cloud sync with Firebase** — Keep your data backed up and up to date.
