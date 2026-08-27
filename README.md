@@ -5,11 +5,26 @@
 <p> A Mobile Application for Filipino Sign Language Interpretation Using Real-Time Gesture Recognition to Aid in Deaf Communication</p>
 
 <p>
-  <img src="https://img.shields.io/badge/Android-8.0+-3DDC84?style=flat-square&logo=android&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white"/>
-  <img src="https://img.shields.io/badge/MediaPipe-0F9D58?style=flat-square&logo=google&logoColor=white"/>
-  <img src="https://img.shields.io/badge/TensorFlow%20Lite-FF6F00?style=flat-square&logo=tensorflow&logoColor=white"/>
+<table>
+  <tr>
+    <td align="center"><img src="assets/Start.jpg" width="180"/><br><sub>Get Started</sub></td>
+    <td align="center"><img src="assets/Login.jpg" width="180"/><br><sub>Login</sub></td>
+    <td align="center"><img src="assets/Signup.jpg" width="180"/><br><sub>Sign Up</sub></td>
+    <td align="center"><img src="assets/ForgotPass.jpg" width="180"/><br><sub>Forgot Password</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="assets/Library.jpg" width="180"/><br><sub>Library</sub></td>
+    <td align="center"><img src="assets/Sign.jpg" width="180"/><br><sub>Dictionary</sub></td>
+    <td align="center"><img src="assets/TextToSign.jpg" width="180"/><br><sub>Text to Sign</sub></td>
+    <td align="center"><img src="assets/SignToText.jpg" width="180"/><br><sub>Sign to Text</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="assets/Quiz1.jpg" width="180"/><br><sub>Quiz</sub></td>
+    <td align="center"><img src="assets/Quiz2.jpg" width="180"/><br><sub>Quiz Result</sub></td>
+    <td align="center"><img src="assets/Quiz3.jpg" width="180"/><br><sub>Quiz Review</sub></td>
+    <td align="center"><img src="assets/Mastery.jpg" width="180"/><br><sub>Mastery</sub></td>
+  </tr>
+</table>
 </p>
 
 </div>
